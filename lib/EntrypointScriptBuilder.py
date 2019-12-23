@@ -13,10 +13,12 @@ class EntrypointScriptBuilder(object):
         self.chart_ref = env.get('CHART_REF', env.get('CHART_NAME'))
         self.chart_repo_url = env.get('CHART_REPO_URL')
         self.chart_version = env.get('CHART_VERSION')
+        self.app_version = env.get('APP_VERSION')
         self.release_name = env.get('RELEASE_NAME')
         self.namespace = env.get('NAMESPACE')
         self.tiller_namespace = env.get('TILLER_NAMESPACE')
         self.dry_run = env.get('DRY_RUN')
+        self.recreate_pods = env.get('RECREATE_PODS')
         self.cmd_ps = env.get('CMD_PS')
         self.google_application_credentials_json = env.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
         self.chart = env.get('CHART_JSON')
@@ -134,14 +136,14 @@ class EntrypointScriptBuilder(object):
         cf_build_url_parsed = urllib.parse.urlparse(cf_build_url)
         token_url = '%s://%s/api/clusters/aks/helm/repos/%s/token' % (cf_build_url_parsed.scheme, cf_build_url_parsed.netloc, service)
         request = urllib.request.Request(token_url)
-        request.add_header('x-access-token', os.getenv('CF_API_KEY'))
+        request.add_header('Authorization', os.getenv('CF_API_KEY'))
         data = json.load(urllib.request.urlopen(request))
         return data['access_token']
 
     def _build_export_commands(self):
         lines = []
         lines.append('export HELM_REPO_ACCESS_TOKEN=$CF_API_KEY')
-        lines.append('export HELM_REPO_AUTH_HEADER=x-access-token')
+        lines.append('export HELM_REPO_AUTH_HEADER=Authorization')
         if self.google_application_credentials_json is not None:
             lines.append('echo -E $GOOGLE_APPLICATION_CREDENTIALS_JSON > /tmp/google-creds.json')
             lines.append('export GOOGLE_APPLICATION_CREDENTIALS=/tmp/google-creds.json')
@@ -189,7 +191,7 @@ class EntrypointScriptBuilder(object):
         if self.release_name is None:
             raise Exception('Must set RELEASE_NAME in the environment (desired Helm release name)')
 
-        helm_promote_cmd = 'helm upgrade %s %s --install ' % (self.release_name, self.chart_ref)
+        helm_promote_cmd = 'helm secrets upgrade %s %s --install ' % (self.release_name, self.chart_ref)
         if self.tiller_namespace is not None:
             helm_promote_cmd += '--tiller-namespace %s ' % self.tiller_namespace
         if self.namespace is not None:
@@ -200,6 +202,8 @@ class EntrypointScriptBuilder(object):
             helm_promote_cmd += '--set %s=%s ' % (cli_set_key, val)
         for cli_set_key, val in sorted(self.string_values.items()):
             helm_promote_cmd += '--set-string %s=%s ' % (cli_set_key, val)
+        if self.recreate_pods:
+            helm_promote_cmd += '--recreate-pods '
         if self.cmd_ps is not None:
             helm_promote_cmd += self.cmd_ps
         if self.dry_run:
@@ -221,11 +225,13 @@ class EntrypointScriptBuilder(object):
                 helm_dep_build_cmd = 'echo ' + helm_dep_build_cmd
             lines.append(helm_dep_build_cmd)
 
-        helm_upgrade_cmd = 'helm upgrade %s %s --install --force --reset-values ' % (self.release_name, self.chart_ref)
+        helm_upgrade_cmd = 'helm secrets upgrade %s %s --install --force --reset-values ' % (self.release_name, self.chart_ref)
         if self.chart_repo_url is not None:
             helm_upgrade_cmd += '--repo %s ' % self.chart_repo_url
         if self.chart_version is not None:
             helm_upgrade_cmd += '--version %s ' % self.chart_version
+        if self.tiller_namespace is not None:
+            helm_upgrade_cmd += '--tiller-namespace %s ' % self.tiller_namespace
         if self.namespace is not None:
             helm_upgrade_cmd += '--namespace %s ' % self.namespace
         for custom_valuesfile in self.custom_valuesfiles:
@@ -234,6 +240,8 @@ class EntrypointScriptBuilder(object):
             helm_upgrade_cmd += '--set %s=%s ' % (cli_set_key, val)
         for cli_set_key, val in sorted(self.string_values.items()):
             helm_upgrade_cmd += '--set-string %s=%s ' % (cli_set_key, val)
+        if self.recreate_pods:
+            helm_upgrade_cmd += '--recreate-pods '
         if self.cmd_ps is not None:
             helm_upgrade_cmd += self.cmd_ps
         if self.dry_run:
@@ -264,6 +272,8 @@ class EntrypointScriptBuilder(object):
             package_var = '$(helm package %s ' % self.chart_ref
             if self.chart_version is not None:
                 package_var += '--version ' + self.chart_version + ' '
+            if self.app_version is not None:
+                package_var += '--app-version ' + self.app_version + ' '
             package_var += '--destination /tmp | cut -d " " -f 8)'
         lines.append('PACKAGE="%s"' % package_var)
 
