@@ -14,8 +14,6 @@ RUN curl -L "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" -o he
     && helm plugin install https://github.com/nouney/helm-gcs.git --version=${GCS_PLUGIN_VERSION} \
     && helm plugin install https://github.com/chartmuseum/helm-push.git --version=${PUSH_PLUGIN_VERSION} \
     && helm plugin install https://github.com/chartmuseum/helm-push.git \
-    && go get go.mozilla.org/sops/cmd/sops \
-    && CGO_ENABLED=0 GOOS=linux go install -a -ldflags '-extldflags "-static"' go.mozilla.org/sops/cmd/sops \
     && helm plugin install https://github.com/futuresimple/helm-secrets
 
 # Run acceptance tests
@@ -33,11 +31,6 @@ COPY --from=setup /temp /root/.helm/* /root/.helm/
 COPY bin/* /opt/bin/
 RUN chmod +x /opt/bin/*
 COPY lib/* /opt/lib/
-
-COPY --from=setup /go/bin/sops /go/bin/sops
-RUN apk add --no-cache gnupg \
-    && chmod +x /go/bin/sops
-ENV PATH="/go/bin:${PATH}"
 
 # Install Python3
 RUN apk add --no-cache python3 \
