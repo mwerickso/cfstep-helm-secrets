@@ -4,3 +4,7 @@ deploy:
     - CHART_REF=mychart
     - RELEASE_NAME=mychart-prod
     - KUBE_CONTEXT=kube-prod
+    - VALUESFILE_FILE1=values/values.yaml
+    - VALUESFILE_FILE2=values/values-dev.yaml
+    - VALUESFILE_FILE3=secrets/secrets.yaml
+    - VALUESFILE_FILE4=secrets/secrets-dev.yaml
